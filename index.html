@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Labouchere Manager — Final</title>
+<style>
+  :root{
+    --bg1: #e9f0ff; --bg2:#f7fbff; --card:#ffffff; --muted:#52607a;
+    --accent:#2563eb; --accent-2:#00c896; --danger:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;
+    background: linear-gradient(180deg,var(--bg1) 0%, var(--bg2) 100%);
+    color: #10233b; padding:22px;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
+
+  .app {
+    max-width:980px; margin:0 auto; display:grid; grid-template-columns: 360px 1fr; gap:18px;
+  }
+
+  .panel{
+    background:var(--card); padding:16px; border-radius:12px;
+    box-shadow: 0 8px 30px rgba(16,35,59,0.08);
+  }
+  header.panel { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  h1{font-size:18px;margin:0;color:#073063}
+  .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+  button {
+    background: linear-gradient(180deg,var(--accent) 0%, #1f4ed8 100%);
+    color:white;border:none;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer;
+    box-shadow:0 6px 18px rgba(37,99,235,0.12);
+  }
+  button.ghost{
+    background:transparent;border:1px solid rgba(16,35,59,0.06); color:var(--muted); font-weight:600; box-shadow:none;
+  }
+  button.danger{ background: linear-gradient(180deg,var(--danger), #c43030); }
+
+  input[type="text"]{
+    width:320px; padding:10px 12px;border-radius:10px;border:1px solid rgba(16,35,59,0.06);
+    background:transparent; color:var(--muted);
+  }
+
+  .sequence-list { display:flex; flex-direction:column; gap:8px; margin-top:12px; max-height:520px; overflow:auto; padding-right:6px; }
+  .seq-item {
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    padding:10px;border-radius:10px;background:#fbfdff;cursor:pointer;border:1px solid rgba(16,35,59,0.03);
+  }
+  .seq-item.active{ outline:2px solid rgba(37,99,235,0.12); background:linear-gradient(180deg,#eef6ff,#fbfdff); }
+  .seq-name{ font-weight:700; color:#073063; }
+  .seq-numbers{ font-family:monospace; font-size:13px; color:var(--muted); }
+
+  .info-row{ display:flex; gap:12px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+
+  /* modal overlay */
+  .modal-overlay {
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(8,20,40,0.18); visibility:hidden; opacity:0; transition:opacity .22s ease, visibility .22s;
+    z-index:120;
+  }
+  .modal-overlay.show{ visibility:visible; opacity:1; }
+
+  /* modal window with fade/scale */
+  .modal {
+    width:520px; max-width:94%; background:var(--card); border-radius:12px; padding:18px;
+    box-shadow:0 18px 60px rgba(16,35,59,0.12); transform:translateY(10px) scale(.98); opacity:0;
+    transition:transform .22s cubic-bezier(.2,.9,.25,1), opacity .22s ease;
+  }
+  .modal-overlay.show .modal { transform:translateY(0) scale(1); opacity:1; }
+
+  .modal h3{ margin:0 0 8px 0; font-size:16px; color:#073063 }
+  .modal p { margin:0; color:var(--muted); font-size:13px; }
+
+  select{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(16,35,59,0.06); background:transparent; color:var(--muted); margin-top:8px }
+
+  footer.modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+
+  /* settings dropdown */
+  .settings-menu {
+    position:relative;
+  }
+  .settings-panel {
+    position:absolute; right:0; top:44px; background:var(--card); border-radius:10px;
+    box-shadow:0 12px 34px rgba(16,35,59,0.08); padding:10px; min-width:220px; display:none;
+  }
+  .settings-panel.show { display:block; }
+
+  .settings-panel button { width:100%; text-align:left; padding:8px 10px; border-radius:8px; margin:4px 0; background:transparent; color:var(--muted); border:1px solid rgba(16,35,59,0.03); box-shadow:none; }
+  .settings-panel button:hover { background:linear-gradient(180deg,#f2f8ff,#fff); color:#073063; }
+
+  .small { font-size:13px; color:var(--muted); }
+
+  /* responsive */
+  @media (max-width:920px){
+    .app{ grid-template-columns: 1fr; }
+    input[type="text"]{ width:100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="panel">
+    <div>
+      <h1>Labouchere Manager — Final</h1>
+      <div class="small" style="margin-top:6px">Light/soft background, animated merge modal, settings with export/import/reset</div>
+    </div>
+
+    <div class="controls">
+      <input id="newSeqInput" type="text" placeholder="Enter starting sequence e.g. 1,2,3,4" />
+      <button id="createMainBtn">➕ Create Main</button>
+      <button id="splitBtn" class="ghost">✂️ Split</button>
+      <button id="mergeBtn" class="ghost">🔀 Merge</button>
+      <button id="winBtn" class="ghost">✅ Win</button>
+      <button id="lossBtn" class="ghost">❌ Loss</button>
+
+      <div class="settings-menu">
+        <button id="settingsBtn" class="ghost">⚙️ Settings</button>
+        <div id="settingsPanel" class="settings-panel" role="menu" aria-hidden="true">
+          <button id="exportJsonBtn">📤 Export as JSON</button>
+          <button id="exportCsvBtn">📄 Export as CSV</button>
+          <button id="importBtn">📥 Import JSON</button>
+          <button id="resetAllBtn" class="danger">🗑 Reset All</button>
+          <input id="importFileInput" type="file" accept="application/json" style="display:none" />
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- left column: sequences -->
+  <div class="panel">
+    <h3>Sequences</h3>
+    <div id="sequences" class="sequence-list"></div>
+    <div class="small" style="margin-top:8px">
+      Click a sequence to make it active. Use Split/Merge on the active sequence. Data is stored locally.
+    </div>
+  </div>
+
+  <!-- right column: active info -->
+  <div class="panel">
+    <h3>Active Sequence</h3>
+    <div id="activeArea">
+      <div class="small">No active sequence selected.</div>
+    </div>
+
+    <div class="info-row" style="margin-top:14px;">
+      <div style="flex:1">
+        <div class="small">Next Bet</div>
+        <div id="nextBet" style="font-weight:800; font-size:20px; margin-top:6px">0</div>
+      </div>
+
+      <div style="flex:1">
+        <div class="small">Sequence Length</div>
+        <div id="seqLen" style="font-weight:700; font-size:18px; margin-top:6px">0</div>
+      </div>
+    </div>
+
+    <div class="info-row" style="margin-top:12px;">
+      <div style="flex:1"><button id="splitActiveBtn">Split Active</button></div>
+      <div style="flex:1"><button id="mergeOpenBtn" class="ghost">Open Merge</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Merge Modal -->
+<div id="modalOverlay" class="modal-overlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mergeTitle">
+    <h3 id="mergeTitle">Merge Child Pair (parent-only)</h3>
+    <p class="small" style="margin-top:6px">Only valid pairs named <code>parent-A</code> & <code>parent-B</code> are listed.</p>
+
+    <div style="margin-top:12px;">
+      <select id="mergeSelect" size="6" style="width:100%;"></select>
+    </div>
+
+    <div id="mergePreview" style="margin-top:10px; color:var(--muted); font-size:13px">Choose a pair to preview the merged result.</div>
+
+    <footer class="modal-actions">
+      <button id="cancelMergeBtn" class="ghost">Cancel</button>
+      <button id="confirmMergeBtn">Confirm Merge</button>
+    </footer>
+  </div>
+</div>
+
+<script>
+/* Persistent key */
+const STORE_KEY = "labouchere_final_v1";
+
+/* Load or init state */
+let state = JSON.parse(localStorage.getItem(STORE_KEY) || '{"sequences": {}, "active": null}');
+
+/* DOM helpers */
+const el = id => document.getElementById(id);
+
+/* Save & render */
+function saveState(){
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  render();
+}
+
+/* Parse user input for sequence */
+function parseSequenceInput(text){
+  return text.split(",").map(s=>s.trim()).filter(Boolean).map(v=>parseFloat(v)).filter(v=>!Number.isNaN(v));
+}
+
+function nextBetAmount(arr){
+  if(!arr) return 0;
+  if(arr.length===0) return 0;
+  if(arr.length===1) return +(arr[0]).toFixed(2);
+  return +((arr[0] + arr[arr.length-1])).toFixed(2);
+}
+
+/* Render UI */
+function render(){
+  // sequences list
+  const seqDiv = el("sequences");
+  seqDiv.innerHTML = "";
+  const names = Object.keys(state.sequences);
+  if(names.length===0){
+    seqDiv.innerHTML = `<div class="small" style="color:var(--muted)">No sequences yet. Create "Main" to start.</div>`;
+  } else {
+    names.forEach(name => {
+      const arr = state.sequences[name];
+      const item = document.createElement("div");
+      item.className = "seq-item" + (state.active===name ? " active" : "");
+      item.onclick = ()=> { state.active = name; saveState(); };
+      const left = document.createElement("div");
+      left.style.flex="1";
+      left.innerHTML = `<div class="seq-name">${name}</div><div class="seq-numbers">${arr.join(", ") || "(empty)"}</div>`;
+      const right = document.createElement("div");
+      right.style.textAlign="right";
+      right.innerHTML = `<div class="small">Len: ${arr.length}</div><div style="font-weight:800">${nextBetAmount(arr)}</div>`;
+      item.appendChild(left); item.appendChild(right);
+      seqDiv.appendChild(item);
+    });
+  }
+
+  // active area
+  const activeArea = el("activeArea");
+  if(!state.active || !state.sequences[state.active]){
+    activeArea.innerHTML = `<div class="small">No active sequence selected.</div>`;
+    el("nextBet").textContent = "0";
+    el("seqLen").textContent = "0";
+  } else {
+    const arr = state.sequences[state.active];
+    activeArea.innerHTML = `
+      <div style="font-weight:800; font-size:16px; color:#073063">${state.active}</div>
+      <div style="margin-top:8px; font-family:monospace; color:var(--muted)">${arr.join(", ") || "(empty)"}</div>
+    `;
+    el("nextBet").textContent = nextBetAmount(arr).toFixed(2);
+    el("seqLen").textContent = arr.length;
+  }
+}
+
+/* Create Main */
+el("createMainBtn").addEventListener("click", ()=>{
+  const input = el("newSeqInput").value.trim();
+  if(!input) return alert("Enter a starting sequence (e.g. 1,2,3,4).");
+  const arr = parseSequenceInput(input);
+  if(arr.length===0) return alert("Invalid sequence input.");
+  if(Object.keys(state.sequences).includes("Main")) return alert("Main already exists. Use Reset in Settings to start fresh.");
+  state.sequences["Main"] = arr;
+  state.active = "Main";
+  saveState();
+});
+
+/* Split active sequence (creates Parent-A and Parent-B, halves values) */
+function splitActiveSequence(){
+  if(!state.active) return alert("Select an active sequence to split.");
+  const parent = state.active;
+  const arr = state.sequences[parent];
+  if(!arr || arr.length===0) return alert("Cannot split an empty sequence.");
+  const half = arr.map(n => +(n/2).toFixed(2));
+  const aName = parent + "-A";
+  const bName = parent + "-B";
+  // delete parent, create children
+  delete state.sequences[parent];
+  state.sequences[aName] = [...half];
+  state.sequences[bName] = [...half];
+  state.active = aName;
+  saveState();
+}
+el("splitBtn").addEventListener("click", ()=> splitActiveSequence());
+el("splitActiveBtn").addEventListener("click", ()=> splitActiveSequence());
+
+/* Win / Loss logic */
+el("winBtn").addEventListener("click", ()=> recordWin());
+el("lossBtn").addEventListener("click", ()=> recordLoss());
+function recordWin(){
+  if(!state.active) return alert("Select an active sequence first.");
+  const arr = state.sequences[state.active];
+  if(!arr || arr.length===0) return alert("Sequence empty.");
+  if(arr.length === 1){
+    arr.shift();
+  } else {
+    arr.shift();
+    arr.pop();
+  }
+  if(arr.length===0) alert(`${state.active} completed its cycle (sequence empty).`);
+  saveState();
+}
+function recordLoss(){
+  if(!state.active) return alert("Select an active sequence first.");
+  const arr = state.sequences[state.active];
+  if(!arr || arr.length===0) return alert("Sequence empty.");
+  const bet = nextBetAmount(arr);
+  arr.push(+bet.toFixed(2));
+  saveState();
+}
+
+/* Reset (settings) */
+el("resetAllBtn").addEventListener("click", ()=> {
+  if(!confirm("Clear all sequences and reset the app? This cannot be undone.")) return;
+  state = {sequences:{}, active:null};
+  saveState();
+});
+
+/* Simple Settings menu toggle */
+const settingsBtn = el("settingsBtn");
+const settingsPanel = el("settingsPanel");
+settingsBtn.addEventListener("click", (e)=>{
+  e.stopPropagation();
+  settingsPanel.classList.toggle("show");
+  settingsPanel.setAttribute("aria-hidden", settingsPanel.classList.contains("show") ? "false" : "true");
+});
+document.addEventListener("click", ()=> {
+  settingsPanel.classList.remove("show");
+  settingsPanel.setAttribute("aria-hidden", "true");
+});
+
+/* --- Export JSON --- */
+el("exportJsonBtn").addEventListener("click", ()=>{
+  const data = { sequences: state.sequences, active: state.active, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `labouchere_export_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+/* --- Export CSV --- 
+   Format: sequenceName, value1, value2, value3...
+*/
+el("exportCsvBtn").addEventListener("click", ()=>{
+  const rows = [];
+  for(const [name, arr] of Object.entries(state.sequences)){
+    // escape commas inside values not needed; values are numbers
+    rows.push([name, ...arr].join(","));
+  }
+  const csv = rows.join("\n");
+  const blob = new Blob([csv], {type: "text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `labouchere_export_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+/* --- Import JSON --- */
+const importFileInput = el("importFileInput");
+el("importBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  importFileInput.value = "";
+  importFileInput.click();
+});
+importFileInput.addEventListener("change", (ev) => {
+  const file = ev.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      // basic validation
+      if(!parsed || typeof parsed !== "object" || !parsed.sequences) return alert("Invalid file format.");
+      // guard: sequences must be object of arrays of numbers
+      const seqs = parsed.sequences;
+      for(const [k,v] of Object.entries(seqs)){
+        if(!Array.isArray(v)) return alert("Invalid sequences format in file.");
+        for(const x of v){
+          if(typeof x !== "number") return alert("Sequence values must be numbers.");
+        }
+      }
+      // overwrite state
+      state.sequences = seqs;
+      state.active = parsed.active && parsed.active in seqs ? parsed.active : Object.keys(seqs)[0] || null;
+      saveState();
+      alert("Import complete. Sequences restored.");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to import file. Ensure it's a valid JSON export from this app.");
+    }
+  };
+  reader.readAsText(file);
+});
+
+/* --- Merge modal logic (only show valid parent pairs) --- */
+const modal = el("modalOverlay");
+const mergeSelect = el("mergeSelect");
+const mergePreview = el("mergePreview");
+let currentMergeChoice = null;
+
+function buildMergeOptions(){
+  // find all names ending with -A and -B having same parent
+  const names = Object.keys(state.sequences);
+  const parents = {};
+  names.forEach(n => {
+    if(n.endsWith("-A")) {
+      const p = n.slice(0, -2);
+      parents[p] = parents[p] || {};
+      parents[p].A = n;
+    } else if(n.endsWith("-B")) {
+      const p = n.slice(0, -2);
+      parents[p] = parents[p] || {};
+      parents[p].B = n;
+    }
+  });
+  // options: only parents that have both A and B
+  const valid = Object.entries(parents).filter(([p, ch]) => ch.A && ch.B);
+  mergeSelect.innerHTML = "";
+  if(valid.length===0){
+    mergeSelect.disabled = true;
+    const opt = document.createElement("option");
+    opt.text = "No valid pairs available";
+    mergeSelect.add(opt);
+    mergePreview.textContent = "No pairs available to merge.";
+    currentMergeChoice = null;
+    return;
+  }
+  mergeSelect.disabled = false;
+  valid.forEach(([p,ch])=>{
+    const label = `${ch.A}  +  ${ch.B}  →  ${p}`;
+    const opt = document.createElement("option");
+    opt.value = p; // store parent name as value
+    opt.text = label;
+    mergeSelect.add(opt);
+  });
+  mergeSelect.selectedIndex = 0;
+  updateMergePreview();
+}
+
+function updateMergePreview(){
+  const parent = mergeSelect.value;
+  if(!parent) { mergePreview.textContent = "Choose a pair to preview."; currentMergeChoice=null; return; }
+  const a = state.sequences[parent + "-A"];
+  const b = state.sequences[parent + "-B"];
+  if(!a || !b) { mergePreview.textContent = "Pair not found."; currentMergeChoice=null; return; }
+  const maxLen = Math.max(a.length, b.length);
+  const merged = [];
+  for(let i=0;i<maxLen;i++){
+    merged.push(+(((a[i]||0) + (b[i]||0)).toFixed(2)));
+  }
+  mergePreview.innerHTML = `<div style="font-weight:700">${parent}-A + ${parent}-B → ${parent}</div>
+    <div class="small" style="margin-top:6px"><b>Merged result:</b> ${merged.join(", ") || "(empty)"}</div>`;
+  currentMergeChoice = parent;
+}
+
+/* Open / close modal */
+el("mergeBtn").addEventListener("click", ()=> openMergeModal());
+el("mergeOpenBtn").addEventListener("click", ()=> openMergeModal());
+el("cancelMergeBtn").addEventListener("click", ()=> closeMergeModal());
+mergeSelect.addEventListener("change", ()=> updateMergePreview());
+
+function openMergeModal(){
+  buildMergeOptions();
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden","false");
+}
+function closeMergeModal(){
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden","true");
+  currentMergeChoice = null;
+}
+
+/* Confirm merge */
+el("confirmMergeBtn").addEventListener("click", ()=>{
+  if(!currentMergeChoice) return alert("Select a valid pair first.");
+  const parent = currentMergeChoice;
+  const A = state.sequences[parent + "-A"];
+  const B = state.sequences[parent + "-B"];
+  if(!A || !B) return alert("Pair not found (maybe deleted).");
+  const maxLen = Math.max(A.length, B.length);
+  const merged = [];
+  for(let i=0;i<maxLen;i++){
+    merged.push(+(((A[i]||0) + (B[i]||0)).toFixed(2)));
+  }
+  // replace parent
+  state.sequences[parent] = merged;
+  // delete children
+  delete state.sequences[parent + "-A"];
+  delete state.sequences[parent + "-B"];
+  state.active = parent;
+  saveState();
+  closeMergeModal();
+});
+
+/* close modal when clicking outside modal box */
+modal.addEventListener("click", (e)=>{
+  if(e.target === modal) closeMergeModal();
+});
+
+/* init render */
+render();
+
+/* save on unload as safety */
+window.addEventListener("beforeunload", ()=> localStorage.setItem(STORE_KEY, JSON.stringify(state)));
+</script>
+</body>
+</html>
