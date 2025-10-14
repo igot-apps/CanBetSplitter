@@ -1,14 +1,14 @@
+
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Labouchere Manager — Fee Leverage</title>
+<title>Labouchere Manager — Final</title>
 <style>
   :root{
     --bg1: #e9f0ff; --bg2:#f7fbff; --card:#ffffff; --muted:#52607a;
     --accent:#2563eb; --accent-2:#00c896; --danger:#ef4444;
-    --warning:#f59e0b;
   }
   *{box-sizing:border-box}
   body{
@@ -39,7 +39,6 @@
     background:transparent;border:1px solid rgba(16,35,59,0.06); color:var(--muted); font-weight:600; box-shadow:none;
   }
   button.danger{ background: linear-gradient(180deg,var(--danger), #c43030); }
-  button.warning{ background: linear-gradient(180deg,var(--warning), #d97706); }
 
   input[type="text"]{
     width:320px; padding:10px 12px;border-radius:10px;border:1px solid rgba(16,35,59,0.06);
@@ -87,7 +86,6 @@
   .settings-panel {
     position:absolute; right:0; top:44px; background:var(--card); border-radius:10px;
     box-shadow:0 12px 34px rgba(16,35,59,0.08); padding:10px; min-width:220px; display:none;
-    z-index: 1000; /* Ensure it's above other elements */
   }
   .settings-panel.show { display:block; }
 
@@ -96,91 +94,31 @@
 
   .small { font-size:13px; color:var(--muted); }
 
-  .config-control {
+  /* fee settings */
+  .fee-settings {
+    margin-top: 12px;
+    padding: 12px;
+    background: #f8faff;
+    border-radius: 8px;
+    border: 1px solid rgba(16,35,59,0.06);
+  }
+  
+  .fee-row {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 8px;
-    padding: 8px 0;
-    border-bottom: 1px solid rgba(16,35,59,0.05);
+    margin-bottom: 8px;
   }
   
-  .config-control:last-child {
-    border-bottom: none;
-  }
-  
-  .config-control label {
-    min-width: 100px;
-    font-size: 13px;
-    color: var(--muted);
-  }
-  
-  .config-control input {
+  .fee-row input {
     width: 80px;
     padding: 6px 8px;
-    border-radius: 6px;
-    border: 1px solid rgba(16,35,59,0.06);
-    background: transparent;
-    color: var(--muted);
   }
   
-  .fee-info {
-    background: #f0f7ff;
-    padding: 8px 12px;
-    border-radius: 8px;
-    margin-top: 12px;
-    border-left: 3px solid var(--accent);
-  }
-  
-  .leverage-info {
-    background: #fffbeb;
-    padding: 8px 12px;
-    border-radius: 8px;
-    margin-top: 8px;
-    border-left: 3px solid var(--warning);
-    font-size: 13px;
-  }
-
-  .stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-top: 12px;
-  }
-  
-  .stat-box {
-    background: #f8fafc;
-    padding: 10px;
-    border-radius: 8px;
-    text-align: center;
-  }
-  
-  .stat-value {
-    font-weight: 800;
-    font-size: 18px;
-    margin-top: 4px;
-  }
-  
-  .stat-label {
-    font-size: 12px;
-    color: var(--muted);
-  }
-  
-  .explanation {
-    background: #f8fafc;
-    padding: 12px;
-    border-radius: 8px;
-    margin-top: 12px;
-    font-size: 13px;
-    color: var(--muted);
-    border-left: 3px solid var(--accent-2);
-  }
-
   /* responsive */
   @media (max-width:920px){
     .app{ grid-template-columns: 1fr; }
     input[type="text"]{ width:100%; }
-    .stats-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -189,8 +127,8 @@
 <div class="app">
   <header class="panel">
     <div>
-      <h1>Labouchere Manager — Fee Leverage</h1>
-      <div class="small" style="margin-top:6px">Leverage now only affects fee calculations for optimal recovery</div>
+      <h1>Labouchere Manager — Final</h1>
+      <div class="small" style="margin-top:6px">Light/soft background, animated merge modal, settings with export/import/reset</div>
     </div>
 
     <div class="controls">
@@ -204,17 +142,10 @@
       <div class="settings-menu">
         <button id="settingsBtn" class="ghost">⚙️ Settings</button>
         <div id="settingsPanel" class="settings-panel" role="menu" aria-hidden="true">
-          <div class="config-control">
-            <label for="feePercentInput">Fee %:</label>
-            <input id="feePercentInput" type="number" min="0" max="100" step="0.1" value="1" />
-          </div>
-          <div class="config-control">
-            <label for="leverageInput">Fee Leverage:</label>
-            <input id="leverageInput" type="number" min="0.1" max="50" step="0.1" value="1" />
-          </div>
           <button id="exportJsonBtn">📤 Export as JSON</button>
           <button id="exportCsvBtn">📄 Export as CSV</button>
           <button id="importBtn">📥 Import JSON</button>
+          <button id="feeSettingsBtn">💰 Fee Settings</button>
           <button id="resetAllBtn" class="danger">🗑 Reset All</button>
           <input id="importFileInput" type="file" accept="application/json" style="display:none" />
         </div>
@@ -238,46 +169,36 @@
       <div class="small">No active sequence selected.</div>
     </div>
 
-    <div class="stats-grid">
-      <div class="stat-box">
-        <div class="stat-label">Next Bet</div>
-        <div id="nextBet" class="stat-value">0</div>
+    <div class="info-row" style="margin-top:14px;">
+      <div style="flex:1">
+        <div class="small">Next Bet</div>
+        <div id="nextBet" style="font-weight:800; font-size:20px; margin-top:6px">0</div>
       </div>
-      <div class="stat-box">
-        <div class="stat-label">Sequence Length</div>
-        <div id="seqLen" class="stat-value">0</div>
+
+      <div style="flex:1">
+        <div class="small">Sequence Length</div>
+        <div id="seqLen" style="font-weight:700; font-size:18px; margin-top:6px">0</div>
       </div>
-      <div class="stat-box">
-        <div class="stat-label">Fee Leverage</div>
-        <div id="leverageDisplay" class="stat-value">1x</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Effective Fee</div>
-        <div id="effectiveFee" class="stat-value">1.00%</div>
-      </div>
-    </div>
-    
-    <div class="fee-info">
-      <div class="small">Base Fee: <span id="feePercentDisplay">1</span>%</div>
-      <div class="small">Total Fees Paid: $<span id="totalFees">0.00</span></div>
-      <div class="small">Next Bet Fee: $<span id="nextBetFee">0.00</span></div>
-    </div>
-    
-    <div class="leverage-info">
-      <div class="small">💡 <strong>Fee Leverage Active</strong></div>
-      <div class="small">Loss recovery accounts for <span id="leverageFeeDisplay">1</span>x fee impact</div>
-    </div>
-    
-    <div class="explanation">
-      <div class="small"><strong>How Fee Leverage Works:</strong></div>
-      <div class="small">• Bet amounts remain unchanged</div>
-      <div class="small">• Loss recovery calculates fees as if they were <span id="explanationLeverage">1</span>x larger</div>
-      <div class="small">• Protects profits from fee erosion during losing streaks</div>
     </div>
 
     <div class="info-row" style="margin-top:12px;">
       <div style="flex:1"><button id="splitActiveBtn">Split Active</button></div>
       <div style="flex:1"><button id="mergeOpenBtn" class="ghost">Open Merge</button></div>
+    </div>
+    
+    <!-- Fee Recovery Stats -->
+    <div class="fee-settings" id="feeStats" style="display:none;">
+      <div style="font-weight:700; margin-bottom:8px; color:#073063">Fee Recovery</div>
+      <div class="info-row">
+        <div style="flex:1">
+          <div class="small">Default Fee</div>
+          <div id="defaultFeeDisplay" style="font-weight:700; margin-top:4px">0%</div>
+        </div>
+        <div style="flex:1">
+          <div class="small">Fees Recovered</div>
+          <div id="feesRecovered" style="font-weight:700; margin-top:4px">$0.00</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -301,12 +222,65 @@
   </div>
 </div>
 
+<!-- Fee Settings Modal -->
+<div id="feeModalOverlay" class="modal-overlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="feeTitle">
+    <h3 id="feeTitle">Transaction Fee Settings</h3>
+    <p class="small" style="margin-top:6px">Set default fee percentage and choose when to apply it.</p>
+
+    <div style="margin-top:12px;">
+      <div class="fee-row">
+        <label for="defaultFeeInput" class="small" style="width:120px">Default Fee (%):</label>
+        <input type="number" id="defaultFeeInput" min="0" max="100" step="0.1" value="2.5" style="width:80px">
+      </div>
+      
+      <div class="fee-row" style="margin-top:12px;">
+        <input type="radio" id="useDefaultFee" name="feeOption" checked>
+        <label for="useDefaultFee" class="small">Use default fee percentage automatically</label>
+      </div>
+      
+      <div class="fee-row">
+        <input type="radio" id="askForFee" name="feeOption">
+        <label for="askForFee" class="small">Ask for actual fee amount ($) when recording loss</label>
+      </div>
+    </div>
+
+    <footer class="modal-actions">
+      <button id="cancelFeeBtn" class="ghost">Cancel</button>
+      <button id="saveFeeBtn">Save Settings</button>
+    </footer>
+  </div>
+</div>
+
+<!-- Fee Input Modal -->
+<div id="feeInputModalOverlay" class="modal-overlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="feeInputTitle">
+    <h3 id="feeInputTitle">Enter Transaction Fee</h3>
+    <p class="small" style="margin-top:6px">Enter the actual transaction fee amount in dollars for this bet.</p>
+
+    <div style="margin-top:12px;">
+      <div class="fee-row">
+        <label for="actualFeeInput" class="small" style="width:120px">Fee Amount ($):</label>
+        <input type="number" id="actualFeeInput" min="0" step="0.01" value="0.00" style="width:100px">
+      </div>
+      <div class="small" style="margin-top:4px; color:var(--accent);">
+        Next bet amount: $<span id="nextBetAmountDisplay">0.00</span>
+      </div>
+    </div>
+
+    <footer class="modal-actions">
+      <button id="cancelFeeInputBtn" class="ghost">Cancel</button>
+      <button id="confirmFeeInputBtn">Confirm</button>
+    </footer>
+  </div>
+</div>
+
 <script>
 /* Persistent key */
-const STORE_KEY = "labouchere_fee_leverage_v1";
+const STORE_KEY = "labouchere_final_v1";
 
 /* Load or init state */
-let state = JSON.parse(localStorage.getItem(STORE_KEY) || '{"sequences": {}, "active": null, "feePercent": 1, "feeLeverage": 1, "totalFees": 0}');
+let state = JSON.parse(localStorage.getItem(STORE_KEY) || '{"sequences": {}, "active": null, "feeSettings": {"defaultFee": 2.5, "useDefaultFee": true}, "feeRecovery": 0}');
 
 /* DOM helpers */
 const el = id => document.getElementById(id);
@@ -322,7 +296,6 @@ function parseSequenceInput(text){
   return text.split(",").map(s=>s.trim()).filter(Boolean).map(v=>parseFloat(v)).filter(v=>!Number.isNaN(v));
 }
 
-/* Calculate next bet amount (NO leverage on bet amounts) */
 function nextBetAmount(arr){
   if(!arr) return 0;
   if(arr.length===0) return 0;
@@ -330,45 +303,8 @@ function nextBetAmount(arr){
   return +((arr[0] + arr[arr.length-1])).toFixed(2);
 }
 
-/* Calculate the fee for a bet amount */
-function calculateFee(betAmount) {
-  return +(betAmount * (state.feePercent / 100)).toFixed(2);
-}
-
-/* Calculate effective fee percentage with leverage */
-function calculateEffectiveFee() {
-  return +(state.feePercent * state.feeLeverage).toFixed(2);
-}
-
-/* Calculate the amount to add when a bet is lost, including leveraged fee recovery */
-function calculateLossAmount(betAmount) {
-  const actualFee = calculateFee(betAmount);
-  
-  // Apply leverage to fee calculation for recovery purposes only
-  const leveragedFeePercent = state.feePercent * state.feeLeverage;
-  const leveragedFee = betAmount * (leveragedFeePercent / 100);
-  
-  // When we lose, we need to recover both the bet amount and the leveraged fee concept
-  // This ensures we're accounting for the amplified impact of fees
-  const baseRecovery = (betAmount + leveragedFee) / (1 - leveragedFeePercent / 100);
-  
-  return +baseRecovery.toFixed(2);
-}
-
 /* Render UI */
 function render(){
-  // Update config displays
-  const effectiveFee = calculateEffectiveFee();
-  
-  el("feePercentDisplay").textContent = state.feePercent;
-  el("feePercentInput").value = state.feePercent;
-  el("leverageInput").value = state.feeLeverage;
-  el("leverageDisplay").textContent = state.feeLeverage + "x";
-  el("effectiveFee").textContent = effectiveFee.toFixed(2) + "%";
-  el("totalFees").textContent = state.totalFees.toFixed(2);
-  el("leverageFeeDisplay").textContent = state.feeLeverage;
-  el("explanationLeverage").textContent = state.feeLeverage;
-  
   // sequences list
   const seqDiv = el("sequences");
   seqDiv.innerHTML = "";
@@ -398,20 +334,21 @@ function render(){
     activeArea.innerHTML = `<div class="small">No active sequence selected.</div>`;
     el("nextBet").textContent = "0";
     el("seqLen").textContent = "0";
-    el("nextBetFee").textContent = "0.00";
+    el("feeStats").style.display = "none";
   } else {
     const arr = state.sequences[state.active];
-    const nextBet = nextBetAmount(arr);
-    const nextFee = calculateFee(nextBet);
-    
     activeArea.innerHTML = `
       <div style="font-weight:800; font-size:16px; color:#073063">${state.active}</div>
       <div style="margin-top:8px; font-family:monospace; color:var(--muted)">${arr.join(", ") || "(empty)"}</div>
     `;
-    el("nextBet").textContent = nextBet.toFixed(2);
+    el("nextBet").textContent = nextBetAmount(arr).toFixed(2);
     el("seqLen").textContent = arr.length;
-    el("nextBetFee").textContent = nextFee.toFixed(2);
+    el("feeStats").style.display = "block";
   }
+  
+  // Update fee stats
+  el("defaultFeeDisplay").textContent = state.feeSettings.defaultFee + "%";
+  el("feesRecovered").textContent = "$" + state.feeRecovery.toFixed(2);
 }
 
 /* Create Main */
@@ -445,74 +382,72 @@ function splitActiveSequence(){
 el("splitBtn").addEventListener("click", ()=> splitActiveSequence());
 el("splitActiveBtn").addEventListener("click", ()=> splitActiveSequence());
 
-/* Win / Loss logic with fee tracking and FEE leverage only */
-el("winBtn").addEventListener("click", ()=> recordWin());
-el("lossBtn").addEventListener("click", ()=> recordLoss());
-function recordWin(){
+/* Win / Loss logic with fee recovery */
+let pendingOutcome = null; // 'win' or 'loss'
+
+el("winBtn").addEventListener("click", ()=> prepareOutcome('win'));
+el("lossBtn").addEventListener("click", ()=> prepareOutcome('loss'));
+
+function prepareOutcome(outcome) {
   if(!state.active) return alert("Select an active sequence first.");
   const arr = state.sequences[state.active];
   if(!arr || arr.length===0) return alert("Sequence empty.");
   
-  const bet = nextBetAmount(arr);
-  const fee = calculateFee(bet);
+  pendingOutcome = outcome;
   
-  // Add the fee to total fees
-  state.totalFees += fee;
-  
-  if(arr.length === 1){
-    arr.shift();
+  if (outcome === 'win') {
+    // For wins, always use default fee percentage
+    recordOutcomeWithFee(state.feeSettings.defaultFee, true);
   } else {
-    arr.shift();
-    arr.pop();
+    // For losses, check if we should use default or ask for actual amount
+    if (state.feeSettings.useDefaultFee) {
+      // Use default fee percentage
+      recordOutcomeWithFee(state.feeSettings.defaultFee, true);
+    } else {
+      // Ask for actual fee amount in dollars
+      openFeeInputModal();
+    }
   }
-  if(arr.length===0) alert(`${state.active} completed its cycle (sequence empty).`);
-  saveState();
 }
-function recordLoss(){
-  if(!state.active) return alert("Select an active sequence first.");
+
+function recordOutcomeWithFee(feeValue, isPercentage = false) {
   const arr = state.sequences[state.active];
-  if(!arr || arr.length===0) return alert("Sequence empty.");
+  const betAmount = nextBetAmount(arr);
   
-  const bet = nextBetAmount(arr);
-  const fee = calculateFee(bet);
+  let feeAmount;
+  if (isPercentage) {
+    // feeValue is a percentage
+    feeAmount = (betAmount * feeValue) / 100;
+  } else {
+    // feeValue is actual dollar amount
+    feeAmount = feeValue;
+  }
   
-  // Add the fee to total fees
-  state.totalFees += fee;
+  if (pendingOutcome === 'win') {
+    // For win: remove first and last numbers, recover fee
+    if(arr.length === 1){
+      arr.shift();
+    } else {
+      arr.shift();
+      arr.pop();
+    }
+    // Add fee to recovery total
+    state.feeRecovery += feeAmount;
+    if(arr.length===0) alert(`${state.active} completed its cycle (sequence empty).`);
+  } else {
+    // For loss: add bet amount plus fee to sequence
+    const totalToAdd = betAmount + feeAmount;
+    arr.push(+totalToAdd.toFixed(2));
+  }
   
-  // Calculate the amount to add to recover both the loss and leveraged fees
-  const lossAmount = calculateLossAmount(bet);
-  arr.push(+lossAmount.toFixed(2));
   saveState();
+  pendingOutcome = null;
 }
-
-/* Update fee percentage */
-el("feePercentInput").addEventListener("change", (e) => {
-  const newFee = parseFloat(e.target.value);
-  if (!isNaN(newFee) && newFee >= 0 && newFee <= 100) {
-    state.feePercent = newFee;
-    saveState();
-  } else {
-    alert("Please enter a valid fee percentage between 0 and 100.");
-    e.target.value = state.feePercent;
-  }
-});
-
-/* Update fee leverage */
-el("leverageInput").addEventListener("change", (e) => {
-  const newLeverage = parseFloat(e.target.value);
-  if (!isNaN(newLeverage) && newLeverage >= 0.1 && newLeverage <= 50) {
-    state.feeLeverage = newLeverage;
-    saveState();
-  } else {
-    alert("Please enter a valid fee leverage between 0.1 and 50.");
-    e.target.value = state.feeLeverage;
-  }
-});
 
 /* Reset (settings) */
 el("resetAllBtn").addEventListener("click", ()=> {
   if(!confirm("Clear all sequences and reset the app? This cannot be undone.")) return;
-  state = {sequences:{}, active:null, feePercent: 1, feeLeverage: 1, totalFees: 0};
+  state = {sequences:{}, active:null, feeSettings: {defaultFee: 2.5, useDefaultFee: true}, feeRecovery: 0};
   saveState();
 });
 
@@ -524,12 +459,6 @@ settingsBtn.addEventListener("click", (e)=>{
   settingsPanel.classList.toggle("show");
   settingsPanel.setAttribute("aria-hidden", settingsPanel.classList.contains("show") ? "false" : "true");
 });
-
-// FIX: Prevent settings panel from closing when clicking inside it
-settingsPanel.addEventListener("click", (e)=>{
-  e.stopPropagation(); // This prevents the click from bubbling up to document
-});
-
 document.addEventListener("click", ()=> {
   settingsPanel.classList.remove("show");
   settingsPanel.setAttribute("aria-hidden", "true");
@@ -540,9 +469,8 @@ el("exportJsonBtn").addEventListener("click", ()=>{
   const data = { 
     sequences: state.sequences, 
     active: state.active, 
-    feePercent: state.feePercent,
-    feeLeverage: state.feeLeverage,
-    totalFees: state.totalFees,
+    feeSettings: state.feeSettings,
+    feeRecovery: state.feeRecovery,
     exportedAt: new Date().toISOString() 
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
@@ -604,9 +532,8 @@ importFileInput.addEventListener("change", (ev) => {
       // overwrite state
       state.sequences = seqs;
       state.active = parsed.active && parsed.active in seqs ? parsed.active : Object.keys(seqs)[0] || null;
-      state.feePercent = parsed.feePercent || 1;
-      state.feeLeverage = parsed.feeLeverage || 1;
-      state.totalFees = parsed.totalFees || 0;
+      state.feeSettings = parsed.feeSettings || {defaultFee: 2.5, useDefaultFee: true};
+      state.feeRecovery = parsed.feeRecovery || 0;
       saveState();
       alert("Import complete. Sequences restored.");
     } catch (err) {
@@ -616,6 +543,62 @@ importFileInput.addEventListener("change", (ev) => {
   };
   reader.readAsText(file);
 });
+
+/* --- Fee Settings Modal --- */
+const feeModal = el("feeModalOverlay");
+const feeInputModal = el("feeInputModalOverlay");
+
+el("feeSettingsBtn").addEventListener("click", openFeeSettingsModal);
+el("cancelFeeBtn").addEventListener("click", closeFeeSettingsModal);
+el("saveFeeBtn").addEventListener("click", saveFeeSettings);
+
+function openFeeSettingsModal() {
+  el("defaultFeeInput").value = state.feeSettings.defaultFee;
+  if (state.feeSettings.useDefaultFee) {
+    el("useDefaultFee").checked = true;
+  } else {
+    el("askForFee").checked = true;
+  }
+  feeModal.classList.add("show");
+  feeModal.setAttribute("aria-hidden","false");
+  settingsPanel.classList.remove("show");
+}
+
+function closeFeeSettingsModal() {
+  feeModal.classList.remove("show");
+  feeModal.setAttribute("aria-hidden","true");
+}
+
+function saveFeeSettings() {
+  state.feeSettings.defaultFee = parseFloat(el("defaultFeeInput").value) || 0;
+  state.feeSettings.useDefaultFee = el("useDefaultFee").checked;
+  saveState();
+  closeFeeSettingsModal();
+}
+
+/* --- Fee Input Modal --- */
+el("cancelFeeInputBtn").addEventListener("click", closeFeeInputModal);
+el("confirmFeeInputBtn").addEventListener("click", confirmFeeInput);
+
+function openFeeInputModal() {
+  const betAmount = nextBetAmount(state.sequences[state.active]);
+  el("nextBetAmountDisplay").textContent = betAmount.toFixed(2);
+  el("actualFeeInput").value = "0.00";
+  feeInputModal.classList.add("show");
+  feeInputModal.setAttribute("aria-hidden","false");
+}
+
+function closeFeeInputModal() {
+  feeInputModal.classList.remove("show");
+  feeInputModal.setAttribute("aria-hidden","true");
+  pendingOutcome = null;
+}
+
+function confirmFeeInput() {
+  const feeAmount = parseFloat(el("actualFeeInput").value) || 0;
+  recordOutcomeWithFee(feeAmount, false); // false means it's actual amount, not percentage
+  closeFeeInputModal();
+}
 
 /* --- Merge modal logic (only show valid parent pairs) --- */
 const modal = el("modalOverlay");
@@ -720,6 +703,12 @@ el("confirmMergeBtn").addEventListener("click", ()=>{
 /* close modal when clicking outside modal box */
 modal.addEventListener("click", (e)=>{
   if(e.target === modal) closeMergeModal();
+});
+feeModal.addEventListener("click", (e)=>{
+  if(e.target === feeModal) closeFeeSettingsModal();
+});
+feeInputModal.addEventListener("click", (e)=>{
+  if(e.target === feeInputModal) closeFeeInputModal();
 });
 
 /* init render */
