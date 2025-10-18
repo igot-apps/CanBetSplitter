@@ -1,0 +1,1336 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Labouchere Manager — Multi-Instance</title>
+<style>
+  :root{
+    --bg1: #e9f0ff; --bg2:#f7fbff; --card:#ffffff; --muted:#52607a;
+    --accent:#2563eb; --accent-2:#00c896; --danger:#ef4444;
+    --win:#10b981; --loss:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;
+    background: linear-gradient(180deg,var(--bg1) 0%, var(--bg2) 100%);
+    color: #10233b; padding:22px;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
+
+  .app {
+    max-width:980px; margin:0 auto; display:grid; grid-template-columns: 360px 1fr; gap:18px;
+  }
+
+  .panel{
+    background:var(--card); padding:16px; border-radius:12px;
+    box-shadow: 0 8px 30px rgba(16,35,59,0.08);
+  }
+  header.panel { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  h1{font-size:18px;margin:0;color:#073063}
+  .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+  button {
+    background: linear-gradient(180deg,var(--accent) 0%, #1f4ed8 100%);
+    color:white;border:none;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer;
+    box-shadow:0 6px 18px rgba(37,99,235,0.12);
+  }
+  button.ghost{
+    background:transparent;border:1px solid rgba(16,35,59,0.06); color:var(--muted); font-weight:600; box-shadow:none;
+  }
+  button.danger{ background: linear-gradient(180deg,var(--danger), #c43030); }
+  button:disabled {
+    opacity:0.5; cursor:not-allowed;
+  }
+
+  input[type="text"]{
+    width:320px; padding:10px 12px;border-radius:10px;border:1px solid rgba(16,35,59,0.06);
+    background:transparent; color:var(--muted);
+  }
+
+  .sequence-list { display:flex; flex-direction:column; gap:8px; margin-top:12px; max-height:520px; overflow:auto; padding-right:6px; }
+  .seq-item {
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    padding:10px;border-radius:10px;background:#fbfdff;cursor:pointer;border:1px solid rgba(16,35,59,0.03);
+  }
+  .seq-item.active{ outline:2px solid rgba(37,99,235,0.12); background:linear-gradient(180deg,#eef6ff,#fbfdff); }
+  .seq-name{ font-weight:700; color:#073063; }
+  .seq-numbers{ font-family:monospace; font-size:13px; color:var(--muted); }
+
+  .info-row{ display:flex; gap:12px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+
+  /* modal overlay */
+  .modal-overlay {
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(8,20,40,0.18); visibility:hidden; opacity:0; transition:opacity .22s ease, visibility .22s;
+    z-index:120;
+  }
+  .modal-overlay.show{ visibility:visible; opacity:1; }
+
+  /* modal window with fade/scale */
+  .modal {
+    width:520px; max-width:94%; background:var(--card); border-radius:12px; padding:18px;
+    box-shadow:0 18px 60px rgba(16,35,59,0.12); transform:translateY(10px) scale(.98); opacity:0;
+    transition:transform .22s cubic-bezier(.2,.9,.25,1), opacity .22s ease;
+  }
+  .modal-overlay.show .modal { transform:translateY(0) scale(1); opacity:1; }
+
+  .modal h3{ margin:0 0 8px 0; font-size:16px; color:#073063 }
+  .modal p { margin:0; color:var(--muted); font-size:13px; }
+
+  select{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(16,35,59,0.06); background:transparent; color:var(--muted); margin-top:8px }
+
+  footer.modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+
+  /* settings dropdown */
+  .settings-menu {
+    position:relative;
+  }
+  .settings-panel {
+    position:absolute; right:0; top:44px; background:var(--card); border-radius:10px;
+    box-shadow:0 12px 34px rgba(16,35,59,0.08); padding:10px; min-width:220px; display:none;
+  }
+  .settings-panel.show { display:block; }
+
+  .settings-panel button { width:100%; text-align:left; padding:8px 10px; border-radius:8px; margin:4px 0; background:transparent; color:var(--muted); border:1px solid rgba(16,35,59,0.03); box-shadow:none; }
+  .settings-panel button:hover { background:linear-gradient(180deg,#f2f8ff,#fff); color:#073063; }
+
+  .small { font-size:13px; color:var(--muted); }
+
+  /* fee settings */
+  .fee-settings {
+    margin-top: 12px;
+    padding: 12px;
+    background: #f8faff;
+    border-radius: 8px;
+    border: 1px solid rgba(16,35,59,0.06);
+  }
+  
+  .fee-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  
+  .fee-row input {
+    width: 80px;
+    padding: 6px 8px;
+  }
+
+  /* undo redo buttons */
+  .undo-redo-controls {
+    display: flex;
+    gap: 4px;
+    margin-left: 8px;
+  }
+  
+  .undo-redo-controls button {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  /* instance management */
+  .instance-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .instance-selector {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .instance-selector select {
+    width: 150px;
+    margin-top: 0;
+  }
+
+  /* win/loss tracking */
+  .stats-panel {
+    margin-top: 16px;
+    padding: 16px;
+    background: #f8faff;
+    border-radius: 10px;
+    border: 1px solid rgba(16,35,59,0.06);
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 12px;
+  }
+
+  .stat-card {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(16,35,59,0.06);
+  }
+
+  .stat-value {
+    font-size: 24px;
+    font-weight: 800;
+    margin-top: 4px;
+  }
+
+  .stat-value.win { color: var(--win); }
+  .stat-value.loss { color: var(--loss); }
+  .stat-value.net { color: var(--accent); }
+
+  .win-loss-bars {
+    display: flex;
+    gap: 4px;
+    height: 8px;
+    margin-top: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .win-bar {
+    background: var(--win);
+    height: 100%;
+    transition: width 0.3s ease;
+  }
+
+  .loss-bar {
+    background: var(--loss);
+    height: 100%;
+    transition: width 0.3s ease;
+  }
+
+  .history-list {
+    margin-top: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid rgba(16,35,59,0.06);
+    border-radius: 8px;
+    padding: 8px;
+    background: white;
+  }
+
+  .history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+
+  .history-item.win {
+    background: rgba(16, 185, 129, 0.08);
+    border-left: 3px solid var(--win);
+  }
+
+  .history-item.loss {
+    background: rgba(239, 68, 68, 0.08);
+    border-left: 3px solid var(--loss);
+  }
+
+  .history-amount {
+    font-weight: 700;
+    font-family: monospace;
+  }
+
+  .history-sequence {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  /* responsive */
+  @media (max-width:920px){
+    .app{ grid-template-columns: 1fr; }
+    input[type="text"]{ width:100%; }
+    .undo-redo-controls {
+      margin-left: 0;
+      margin-top: 8px;
+    }
+    .instance-controls {
+      flex-direction: column;
+    }
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="panel">
+    <div>
+      <h1>Labouchere Manager — Multi-Instance</h1>
+      <div class="small" style="margin-top:6px">Multiple instances, Undo/Redo, Fee Recovery, Win/Loss Tracking</div>
+    </div>
+
+    <div class="controls">
+      <input id="newSeqInput" type="text" placeholder="Enter starting sequence e.g. 1,2,3,4" />
+      <button id="createMainBtn">➕ Create Main</button>
+      <button id="splitBtn" class="ghost">✂️ Split</button>
+      <button id="mergeBtn" class="ghost">🔀 Merge</button>
+      <button id="winBtn" class="ghost">✅ Win</button>
+      <button id="lossBtn" class="ghost">❌ Loss</button>
+
+      <div class="undo-redo-controls">
+        <button id="undoBtn" class="ghost" disabled>↶ Undo</button>
+        <button id="redoBtn" class="ghost" disabled>↷ Redo</button>
+      </div>
+
+      <div class="settings-menu">
+        <button id="settingsBtn" class="ghost">⚙️ Settings</button>
+        <div id="settingsPanel" class="settings-panel" role="menu" aria-hidden="true">
+          <button id="exportJsonBtn">📤 Export as JSON</button>
+          <button id="exportCsvBtn">📄 Export as CSV</button>
+          <button id="importBtn">📥 Import JSON</button>
+          <button id="feeSettingsBtn">💰 Fee Settings</button>
+          <button id="newInstanceBtn">🆕 New Instance</button>
+          <button id="clearHistoryBtn" class="danger">🗑 Clear History</button>
+          <button id="resetAllBtn" class="danger">🗑 Reset All</button>
+          <input id="importFileInput" type="file" accept="application/json" style="display:none" />
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Instance Management -->
+  <div class="panel" style="grid-column:1/-1;">
+    <h3>Instance Management</h3>
+    <div class="instance-controls">
+      <div class="instance-selector">
+        <label for="instanceSelect" class="small">Current Instance:</label>
+        <select id="instanceSelect"></select>
+        <button id="renameInstanceBtn" class="ghost">✏️ Rename</button>
+        <button id="deleteInstanceBtn" class="ghost danger">🗑 Delete</button>
+      </div>
+      <div style="flex:1"></div>
+      <button id="createInstanceBtn">🆕 Create New Instance</button>
+    </div>
+  </div>
+
+  <!-- left column: sequences -->
+  <div class="panel">
+    <h3>Sequences</h3>
+    <div id="sequences" class="sequence-list"></div>
+    <div class="small" style="margin-top:8px">
+      Click a sequence to make it active. Use Split/Merge on the active sequence. Data is stored locally.
+    </div>
+  </div>
+
+  <!-- right column: active info -->
+  <div class="panel">
+    <h3>Active Sequence</h3>
+    <div id="activeArea">
+      <div class="small">No active sequence selected.</div>
+    </div>
+
+    <div class="info-row" style="margin-top:14px;">
+      <div style="flex:1">
+        <div class="small">Next Bet</div>
+        <div id="nextBet" style="font-weight:800; font-size:20px; margin-top:6px">0</div>
+      </div>
+
+      <div style="flex:1">
+        <div class="small">Sequence Length</div>
+        <div id="seqLen" style="font-weight:700; font-size:18px; margin-top:6px">0</div>
+      </div>
+    </div>
+
+    <div class="info-row" style="margin-top:12px;">
+      <div style="flex:1"><button id="splitActiveBtn">Split Active</button></div>
+      <div style="flex:1"><button id="mergeOpenBtn" class="ghost">Open Merge</button></div>
+    </div>
+    
+    <!-- Fee Recovery Stats -->
+    <div class="fee-settings" id="feeStats" style="display:none;">
+      <div style="font-weight:700; margin-bottom:8px; color:#073063">Fee Recovery</div>
+      <div class="info-row">
+        <div style="flex:1">
+          <div class="small">Default Fee</div>
+          <div id="defaultFeeDisplay" style="font-weight:700; margin-top:4px">0%</div>
+        </div>
+        <div style="flex:1">
+          <div class="small">Fees Recovered</div>
+          <div id="feesRecovered" style="font-weight:700; margin-top:4px">$0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Win/Loss Statistics -->
+    <div class="stats-panel" id="statsPanel" style="display:none;">
+      <div style="font-weight:700; margin-bottom:8px; color:#073063">Session Statistics</div>
+      
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="small">Total Wins</div>
+          <div id="totalWins" class="stat-value win">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="small">Total Losses</div>
+          <div id="totalLosses" class="stat-value loss">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="small">Win Rate</div>
+          <div id="winRate" class="stat-value">0%</div>
+        </div>
+        <div class="stat-card">
+          <div class="small">Net Result</div>
+          <div id="netResult" class="stat-value net">$0.00</div>
+        </div>
+      </div>
+
+      <!-- Win/Loss Ratio Bar -->
+      <div style="margin-top:12px;">
+        <div class="small" style="margin-bottom:4px;">Win/Loss Ratio</div>
+        <div class="win-loss-bars" id="winLossBars">
+          <div class="win-bar" style="width:0%"></div>
+          <div class="loss-bar" style="width:0%"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:4px;">
+          <span class="small" style="color:var(--win)">Wins: <span id="winsCount">0</span></span>
+          <span class="small" style="color:var(--loss)">Losses: <span id="lossesCount">0</span></span>
+        </div>
+      </div>
+
+      <!-- Recent History -->
+      <div style="margin-top:12px;">
+        <div class="small" style="margin-bottom:4px;">Recent History</div>
+        <div id="historyList" class="history-list">
+          <div class="small" style="text-align:center; color:var(--muted); padding:20px;">
+            No bets recorded yet
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Merge Modal -->
+<div id="modalOverlay" class="modal-overlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mergeTitle">
+    <h3 id="mergeTitle">Merge Child Pair (parent-only)</h3>
+    <p class="small" style="margin-top:6px">Only valid pairs named <code>parent-A</code> & <code>parent-B</code> are listed.</p>
+
+    <div style="margin-top:12px;">
+      <select id="mergeSelect" size="6" style="width:100%;"></select>
+    </div>
+
+    <div id="mergePreview" style="margin-top:10px; color:var(--muted); font-size:13px">Choose a pair to preview the merged result.</div>
+
+    <footer class="modal-actions">
+      <button id="cancelMergeBtn" class="ghost">Cancel</button>
+      <button id="confirmMergeBtn">Confirm Merge</button>
+    </footer>
+  </div>
+</div>
+
+<!-- Fee Settings Modal -->
+<div id="feeModalOverlay" class="modal-overlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="feeTitle">
+    <h3 id="feeTitle">Transaction Fee Settings</h3>
+    <p class="small" style="margin-top:6px">Set default fee percentage and choose when to apply it.</p>
+
+    <div style="margin-top:12px;">
+      <div class="fee-row">
+        <label for="defaultFeeInput" class="small" style="width:120px">Default Fee (%):</label>
+        <input type="number" id="defaultFeeInput" min="0" max="100" step="0.1" value="2.5" style="width:80px">
+      </div>
+      
+      <div class="fee-row" style="margin-top:12px;">
+        <input type="radio" id="useDefaultFee" name="feeOption" checked>
+        <label for="useDefaultFee" class="small">Use default fee percentage automatically</label>
+      </div>
+      
+      <div class="fee-row">
+        <input type="radio" id="askForFee" name="feeOption">
+        <label for="askForFee" class="small">Ask for actual fee amount ($) when recording loss</label>
+      </div>
+    </div>
+
+    <footer class="modal-actions">
+      <button id="cancelFeeBtn" class="ghost">Cancel</button>
+      <button id="saveFeeBtn">Save Settings</button>
+    </footer>
+  </div>
+</div>
+
+<!-- Fee Input Modal -->
+<div id="feeInputModalOverlay" class="modal-overlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="feeInputTitle">
+    <h3 id="feeInputTitle">Enter Transaction Fee</h3>
+    <p class="small" style="margin-top:6px">Enter the actual transaction fee amount in dollars for this bet.</p>
+
+    <div style="margin-top:12px;">
+      <div class="fee-row">
+        <label for="actualFeeInput" class="small" style="width:120px">Fee Amount ($):</label>
+        <input type="number" id="actualFeeInput" min="0" step="0.01" value="0.00" style="width:100px">
+      </div>
+      <div class="small" style="margin-top:4px; color:var(--accent);">
+        Next bet amount: $<span id="nextBetAmountDisplay">0.00</span>
+      </div>
+    </div>
+
+    <footer class="modal-actions">
+      <button id="cancelFeeInputBtn" class="ghost">Cancel</button>
+      <button id="confirmFeeInputBtn">Confirm</button>
+    </footer>
+  </div>
+</div>
+
+<!-- Rename Instance Modal -->
+<div id="renameModalOverlay" class="modal-overlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="renameTitle">
+    <h3 id="renameTitle">Rename Instance</h3>
+    <p class="small" style="margin-top:6px">Enter a new name for this instance.</p>
+
+    <div style="margin-top:12px;">
+      <input type="text" id="renameInstanceInput" placeholder="Instance name" style="width:100%" />
+    </div>
+
+    <footer class="modal-actions">
+      <button id="cancelRenameBtn" class="ghost">Cancel</button>
+      <button id="confirmRenameBtn">Rename</button>
+    </footer>
+  </div>
+</div>
+
+<script>
+/* Persistent key */
+const STORE_KEY = "labouchere_multi_v1";
+
+/* Multi-instance state structure */
+let appState = {
+  instances: {},
+  currentInstance: "default",
+  instanceCounter: 1
+};
+
+/* Load or init state */
+const savedState = localStorage.getItem(STORE_KEY);
+if (savedState) {
+  const parsed = JSON.parse(savedState);
+  appState = {
+    ...appState,
+    ...parsed,
+    instances: parsed.instances || { default: getDefaultInstanceState() }
+  };
+} else {
+  appState.instances.default = getDefaultInstanceState();
+}
+
+function getDefaultInstanceState() {
+  return {
+    sequences: {},
+    active: null,
+    feeSettings: { defaultFee: 2.5, useDefaultFee: true },
+    feeRecovery: 0,
+    historyStack: [],
+    futureStack: [],
+    // New: Win/Loss tracking
+    betHistory: [],
+    totalWins: 0,
+    totalLosses: 0,
+    totalWagered: 0,
+    totalWon: 0,
+    totalLost: 0
+  };
+}
+
+function getCurrentInstance() {
+  return appState.instances[appState.currentInstance];
+}
+
+function setCurrentInstance(instanceName) {
+  appState.currentInstance = instanceName;
+  saveAppState();
+  render();
+  updateUndoRedoButtons();
+  updateStatsDisplay();
+}
+
+/* Undo/Redo functionality */
+const HISTORY_SIZE = 50;
+
+function saveToHistory() {
+  const instance = getCurrentInstance();
+  instance.historyStack.push(JSON.parse(JSON.stringify({
+    sequences: instance.sequences,
+    active: instance.active,
+    feeRecovery: instance.feeRecovery,
+    betHistory: instance.betHistory,
+    totalWins: instance.totalWins,
+    totalLosses: instance.totalLosses,
+    totalWagered: instance.totalWagered,
+    totalWon: instance.totalWon,
+    totalLost: instance.totalLost
+  })));
+  if (instance.historyStack.length > HISTORY_SIZE) {
+    instance.historyStack.shift();
+  }
+  instance.futureStack = [];
+  updateUndoRedoButtons();
+  saveAppState();
+}
+
+function undo() {
+  const instance = getCurrentInstance();
+  if (instance.historyStack.length === 0) return;
+  
+  instance.futureStack.push(JSON.parse(JSON.stringify({
+    sequences: instance.sequences,
+    active: instance.active,
+    feeRecovery: instance.feeRecovery,
+    betHistory: instance.betHistory,
+    totalWins: instance.totalWins,
+    totalLosses: instance.totalLosses,
+    totalWagered: instance.totalWagered,
+    totalWon: instance.totalWon,
+    totalLost: instance.totalLost
+  })));
+  
+  const previousState = instance.historyStack.pop();
+  instance.sequences = previousState.sequences;
+  instance.active = previousState.active;
+  instance.feeRecovery = previousState.feeRecovery;
+  instance.betHistory = previousState.betHistory;
+  instance.totalWins = previousState.totalWins;
+  instance.totalLosses = previousState.totalLosses;
+  instance.totalWagered = previousState.totalWagered;
+  instance.totalWon = previousState.totalWon;
+  instance.totalLost = previousState.totalLost;
+  
+  saveAppState();
+  render();
+  updateUndoRedoButtons();
+  updateStatsDisplay();
+}
+
+function redo() {
+  const instance = getCurrentInstance();
+  if (instance.futureStack.length === 0) return;
+  
+  instance.historyStack.push(JSON.parse(JSON.stringify({
+    sequences: instance.sequences,
+    active: instance.active,
+    feeRecovery: instance.feeRecovery,
+    betHistory: instance.betHistory,
+    totalWins: instance.totalWins,
+    totalLosses: instance.totalLosses,
+    totalWagered: instance.totalWagered,
+    totalWon: instance.totalWon,
+    totalLost: instance.totalLost
+  })));
+  
+  const futureState = instance.futureStack.pop();
+  instance.sequences = futureState.sequences;
+  instance.active = futureState.active;
+  instance.feeRecovery = futureState.feeRecovery;
+  instance.betHistory = futureState.betHistory;
+  instance.totalWins = futureState.totalWins;
+  instance.totalLosses = futureState.totalLosses;
+  instance.totalWagered = futureState.totalWagered;
+  instance.totalWon = futureState.totalWon;
+  instance.totalLost = futureState.totalLost;
+  
+  saveAppState();
+  render();
+  updateUndoRedoButtons();
+  updateStatsDisplay();
+}
+
+function updateUndoRedoButtons() {
+  const instance = getCurrentInstance();
+  el("undoBtn").disabled = instance.historyStack.length === 0;
+  el("redoBtn").disabled = instance.futureStack.length === 0;
+}
+
+/* DOM helpers */
+const el = id => document.getElementById(id);
+
+/* Save & render */
+function saveAppState(){
+  localStorage.setItem(STORE_KEY, JSON.stringify(appState));
+}
+
+function render(){
+  renderInstanceSelector();
+  
+  const instance = getCurrentInstance();
+  
+  // sequences list
+  const seqDiv = el("sequences");
+  seqDiv.innerHTML = "";
+  const names = Object.keys(instance.sequences);
+  if(names.length===0){
+    seqDiv.innerHTML = `<div class="small" style="color:var(--muted)">No sequences yet. Create "Main" to start.</div>`;
+  } else {
+    names.forEach(name => {
+      const arr = instance.sequences[name];
+      const item = document.createElement("div");
+      item.className = "seq-item" + (instance.active===name ? " active" : "");
+      item.onclick = ()=> { 
+        saveToHistory();
+        instance.active = name; 
+        saveAppState();
+        render();
+      };
+      const left = document.createElement("div");
+      left.style.flex="1";
+      left.innerHTML = `<div class="seq-name">${name}</div><div class="seq-numbers">${arr.join(", ") || "(empty)"}</div>`;
+      const right = document.createElement("div");
+      right.style.textAlign="right";
+      right.innerHTML = `<div class="small">Len: ${arr.length}</div><div style="font-weight:800">${nextBetAmount(arr)}</div>`;
+      item.appendChild(left); item.appendChild(right);
+      seqDiv.appendChild(item);
+    });
+  }
+
+  // active area
+  const activeArea = el("activeArea");
+  if(!instance.active || !instance.sequences[instance.active]){
+    activeArea.innerHTML = `<div class="small">No active sequence selected.</div>`;
+    el("nextBet").textContent = "0";
+    el("seqLen").textContent = "0";
+    el("feeStats").style.display = "none";
+    el("statsPanel").style.display = "none";
+  } else {
+    const arr = instance.sequences[instance.active];
+    activeArea.innerHTML = `
+      <div style="font-weight:800; font-size:16px; color:#073063">${instance.active}</div>
+      <div style="margin-top:8px; font-family:monospace; color:var(--muted)">${arr.join(", ") || "(empty)"}</div>
+    `;
+    el("nextBet").textContent = nextBetAmount(arr).toFixed(2);
+    el("seqLen").textContent = arr.length;
+    el("feeStats").style.display = "block";
+    el("statsPanel").style.display = "block";
+  }
+  
+  // Update fee stats
+  el("defaultFeeDisplay").textContent = instance.feeSettings.defaultFee + "%";
+  el("feesRecovered").textContent = "$" + instance.feeRecovery.toFixed(2);
+}
+
+function renderInstanceSelector() {
+  const select = el("instanceSelect");
+  select.innerHTML = "";
+  Object.keys(appState.instances).forEach(instanceName => {
+    const option = document.createElement("option");
+    option.value = instanceName;
+    option.textContent = instanceName;
+    option.selected = instanceName === appState.currentInstance;
+    select.appendChild(option);
+  });
+}
+
+/* Parse user input for sequence */
+function parseSequenceInput(text){
+  return text.split(",").map(s=>s.trim()).filter(Boolean).map(v=>parseFloat(v)).filter(v=>!Number.isNaN(v));
+}
+
+function nextBetAmount(arr){
+  if(!arr) return 0;
+  if(arr.length===0) return 0;
+  if(arr.length===1) return +(arr[0]).toFixed(2);
+  return +((arr[0] + arr[arr.length-1])).toFixed(2);
+}
+
+/* Create Main */
+el("createMainBtn").addEventListener("click", ()=>{
+  const input = el("newSeqInput").value.trim();
+  if(!input) return alert("Enter a starting sequence (e.g. 1,2,3,4).");
+  const arr = parseSequenceInput(input);
+  if(arr.length===0) return alert("Invalid sequence input.");
+  
+  const instance = getCurrentInstance();
+  if(Object.keys(instance.sequences).includes("Main")) return alert("Main already exists. Use Reset in Settings to start fresh.");
+  
+  saveToHistory();
+  instance.sequences["Main"] = arr;
+  instance.active = "Main";
+  saveAppState();
+  render();
+});
+
+/* Split active sequence (creates Parent-A and Parent-B, halves values) */
+function splitActiveSequence(){
+  const instance = getCurrentInstance();
+  if(!instance.active) return alert("Select an active sequence to split.");
+  const parent = instance.active;
+  const arr = instance.sequences[parent];
+  if(!arr || arr.length===0) return alert("Cannot split an empty sequence.");
+  
+  saveToHistory();
+  const half = arr.map(n => +(n/2).toFixed(2));
+  const aName = parent + "-A";
+  const bName = parent + "-B";
+  // delete parent, create children
+  delete instance.sequences[parent];
+  instance.sequences[aName] = [...half];
+  instance.sequences[bName] = [...half];
+  instance.active = aName;
+  saveAppState();
+  render();
+}
+el("splitBtn").addEventListener("click", ()=> splitActiveSequence());
+el("splitActiveBtn").addEventListener("click", ()=> splitActiveSequence());
+
+/* Win / Loss logic with fee recovery and tracking */
+let pendingOutcome = null; // 'win' or 'loss'
+
+el("winBtn").addEventListener("click", ()=> prepareOutcome('win'));
+el("lossBtn").addEventListener("click", ()=> prepareOutcome('loss'));
+
+function prepareOutcome(outcome) {
+  const instance = getCurrentInstance();
+  if(!instance.active) return alert("Select an active sequence first.");
+  const arr = instance.sequences[instance.active];
+  if(!arr || arr.length===0) return alert("Sequence empty.");
+  
+  pendingOutcome = outcome;
+  
+  if (outcome === 'win') {
+    // For wins, always use default fee percentage
+    recordOutcomeWithFee(instance.feeSettings.defaultFee, true);
+  } else {
+    // For losses, check if we should use default or ask for actual amount
+    if (instance.feeSettings.useDefaultFee) {
+      // Use default fee percentage
+      recordOutcomeWithFee(instance.feeSettings.defaultFee, true);
+    } else {
+      // Ask for actual fee amount in dollars
+      openFeeInputModal();
+    }
+  }
+}
+
+function recordOutcomeWithFee(feeValue, isPercentage = false) {
+  const instance = getCurrentInstance();
+  const arr = instance.sequences[instance.active];
+  const betAmount = nextBetAmount(arr);
+  
+  let feeAmount;
+  if (isPercentage) {
+    // feeValue is a percentage
+    feeAmount = (betAmount * feeValue) / 100;
+  } else {
+    // feeValue is actual dollar amount
+    feeAmount = feeValue;
+  }
+  
+  saveToHistory();
+  
+  // Record the bet in history
+  const betRecord = {
+    type: pendingOutcome,
+    amount: betAmount,
+    fee: feeAmount,
+    sequence: instance.active,
+    timestamp: new Date().toISOString(),
+    sequenceState: [...arr] // Save current sequence state
+  };
+  
+  if (pendingOutcome === 'win') {
+    // For win: remove first and last numbers, recover fee
+    if(arr.length === 1){
+      arr.shift();
+    } else {
+      arr.shift();
+      arr.pop();
+    }
+    // Add fee to recovery total
+    instance.feeRecovery += feeAmount;
+    
+    // Update win stats
+    instance.totalWins++;
+    instance.totalWon += betAmount;
+    instance.totalWagered += betAmount;
+    
+    if(arr.length===0) alert(`${instance.active} completed its cycle (sequence empty).`);
+  } else {
+    // For loss: add bet amount plus fee to sequence
+    const totalToAdd = betAmount + feeAmount;
+    arr.push(+totalToAdd.toFixed(2));
+    
+    // Update loss stats
+    instance.totalLosses++;
+    instance.totalLost += betAmount + feeAmount;
+    instance.totalWagered += betAmount;
+  }
+  
+  // Add to bet history (keep last 50 bets)
+  instance.betHistory.unshift(betRecord);
+  if (instance.betHistory.length > 50) {
+    instance.betHistory.pop();
+  }
+  
+  saveAppState();
+  render();
+  updateStatsDisplay();
+  pendingOutcome = null;
+}
+
+/* Update statistics display */
+function updateStatsDisplay() {
+  const instance = getCurrentInstance();
+  
+  // Update main stats
+  el("totalWins").textContent = instance.totalWins;
+  el("totalLosses").textContent = instance.totalLosses;
+  
+  const totalBets = instance.totalWins + instance.totalLosses;
+  const winRate = totalBets > 0 ? (instance.totalWins / totalBets * 100) : 0;
+  el("winRate").textContent = winRate.toFixed(1) + "%";
+  
+  const netResult = instance.totalWon - instance.totalLost;
+  el("netResult").textContent = "$" + netResult.toFixed(2);
+  
+  // Update win/loss bars
+  const winPercentage = totalBets > 0 ? (instance.totalWins / totalBets * 100) : 0;
+  const lossPercentage = totalBets > 0 ? (instance.totalLosses / totalBets * 100) : 0;
+  
+  el("winLossBars").innerHTML = `
+    <div class="win-bar" style="width:${winPercentage}%"></div>
+    <div class="loss-bar" style="width:${lossPercentage}%"></div>
+  `;
+  
+  el("winsCount").textContent = instance.totalWins;
+  el("lossesCount").textContent = instance.totalLosses;
+  
+  // Update history list
+  const historyList = el("historyList");
+  if (instance.betHistory.length === 0) {
+    historyList.innerHTML = `<div class="small" style="text-align:center; color:var(--muted); padding:20px;">No bets recorded yet</div>`;
+  } else {
+    historyList.innerHTML = instance.betHistory.map(bet => `
+      <div class="history-item ${bet.type}">
+        <div>
+          <div style="font-weight:700; text-transform:uppercase; font-size:11px;">${bet.type}</div>
+          <div class="history-sequence">${bet.sequence}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="history-amount" style="color:${bet.type === 'win' ? 'var(--win)' : 'var(--loss)'}">
+            ${bet.type === 'win' ? '+' : '-'}$${bet.amount.toFixed(2)}
+          </div>
+          <div class="small">${new Date(bet.timestamp).toLocaleTimeString()}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+}
+
+/* Instance Management */
+el("createInstanceBtn").addEventListener("click", () => {
+  const instanceName = `Instance ${appState.instanceCounter++}`;
+  appState.instances[instanceName] = getDefaultInstanceState();
+  setCurrentInstance(instanceName);
+});
+
+el("newInstanceBtn").addEventListener("click", () => {
+  const instanceName = `Instance ${appState.instanceCounter++}`;
+  appState.instances[instanceName] = getDefaultInstanceState();
+  setCurrentInstance(instanceName);
+});
+
+el("instanceSelect").addEventListener("change", (e) => {
+  setCurrentInstance(e.target.value);
+});
+
+el("renameInstanceBtn").addEventListener("click", () => {
+  openRenameModal();
+});
+
+el("deleteInstanceBtn").addEventListener("click", () => {
+  const instanceName = appState.currentInstance;
+  if (Object.keys(appState.instances).length <= 1) {
+    return alert("Cannot delete the only instance.");
+  }
+  if (!confirm(`Delete instance "${instanceName}"? This cannot be undone.`)) return;
+  
+  delete appState.instances[instanceName];
+  const remainingInstances = Object.keys(appState.instances);
+  setCurrentInstance(remainingInstances[0]);
+});
+
+/* Clear History */
+el("clearHistoryBtn").addEventListener("click", () => {
+  if (!confirm("Clear all win/loss history for this instance? This cannot be undone.")) return;
+  const instance = getCurrentInstance();
+  saveToHistory();
+  instance.betHistory = [];
+  instance.totalWins = 0;
+  instance.totalLosses = 0;
+  instance.totalWagered = 0;
+  instance.totalWon = 0;
+  instance.totalLost = 0;
+  saveAppState();
+  updateStatsDisplay();
+});
+
+/* Rename Instance Modal */
+const renameModal = el("renameModalOverlay");
+
+function openRenameModal() {
+  el("renameInstanceInput").value = appState.currentInstance;
+  renameModal.classList.add("show");
+  renameModal.setAttribute("aria-hidden","false");
+}
+
+function closeRenameModal() {
+  renameModal.classList.remove("show");
+  renameModal.setAttribute("aria-hidden","true");
+}
+
+el("cancelRenameBtn").addEventListener("click", closeRenameModal);
+el("confirmRenameBtn").addEventListener("click", () => {
+  const newName = el("renameInstanceInput").value.trim();
+  if (!newName) return alert("Please enter a name.");
+  if (appState.instances[newName] && newName !== appState.currentInstance) {
+    return alert("An instance with this name already exists.");
+  }
+  
+  // Rename the instance
+  appState.instances[newName] = appState.instances[appState.currentInstance];
+  delete appState.instances[appState.currentInstance];
+  setCurrentInstance(newName);
+  closeRenameModal();
+});
+
+renameModal.addEventListener("click", (e) => {
+  if(e.target === renameModal) closeRenameModal();
+});
+
+/* Reset (settings) */
+el("resetAllBtn").addEventListener("click", ()=> {
+  if(!confirm("Clear all sequences and reset this instance? This cannot be undone.")) return;
+  const instance = getCurrentInstance();
+  saveToHistory();
+  instance.sequences = {};
+  instance.active = null;
+  instance.feeRecovery = 0;
+  instance.betHistory = [];
+  instance.totalWins = 0;
+  instance.totalLosses = 0;
+  instance.totalWagered = 0;
+  instance.totalWon = 0;
+  instance.totalLost = 0;
+  saveAppState();
+  render();
+  updateStatsDisplay();
+});
+
+/* Simple Settings menu toggle */
+const settingsBtn = el("settingsBtn");
+const settingsPanel = el("settingsPanel");
+settingsBtn.addEventListener("click", (e)=>{
+  e.stopPropagation();
+  settingsPanel.classList.toggle("show");
+  settingsPanel.setAttribute("aria-hidden", settingsPanel.classList.contains("show") ? "false" : "true");
+});
+document.addEventListener("click", ()=> {
+  settingsPanel.classList.remove("show");
+  settingsPanel.setAttribute("aria-hidden", "true");
+});
+
+/* --- Export JSON --- */
+el("exportJsonBtn").addEventListener("click", ()=>{
+  const instance = getCurrentInstance();
+  const data = { 
+    sequences: instance.sequences, 
+    active: instance.active, 
+    feeSettings: instance.feeSettings,
+    feeRecovery: instance.feeRecovery,
+    betHistory: instance.betHistory,
+    totalWins: instance.totalWins,
+    totalLosses: instance.totalLosses,
+    totalWagered: instance.totalWagered,
+    totalWon: instance.totalWon,
+    totalLost: instance.totalLost,
+    instanceName: appState.currentInstance,
+    exportedAt: new Date().toISOString() 
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `labouchere_${appState.currentInstance}_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+/* --- Export CSV --- 
+   Format: sequenceName, value1, value2, value3...
+*/
+el("exportCsvBtn").addEventListener("click", ()=>{
+  const instance = getCurrentInstance();
+  const rows = [];
+  for(const [name, arr] of Object.entries(instance.sequences)){
+    rows.push([name, ...arr].join(","));
+  }
+  const csv = rows.join("\n");
+  const blob = new Blob([csv], {type: "text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `labouchere_${appState.currentInstance}_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+/* --- Import JSON --- */
+const importFileInput = el("importFileInput");
+el("importBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  importFileInput.value = "";
+  importFileInput.click();
+});
+importFileInput.addEventListener("change", (ev) => {
+  const file = ev.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if(!parsed || typeof parsed !== "object" || !parsed.sequences) return alert("Invalid file format.");
+      
+      const instance = getCurrentInstance();
+      saveToHistory();
+      
+      instance.sequences = parsed.sequences;
+      instance.active = parsed.active && parsed.active in parsed.sequences ? parsed.active : Object.keys(parsed.sequences)[0] || null;
+      instance.feeSettings = parsed.feeSettings || {defaultFee: 2.5, useDefaultFee: true};
+      instance.feeRecovery = parsed.feeRecovery || 0;
+      instance.betHistory = parsed.betHistory || [];
+      instance.totalWins = parsed.totalWins || 0;
+      instance.totalLosses = parsed.totalLosses || 0;
+      instance.totalWagered = parsed.totalWagered || 0;
+      instance.totalWon = parsed.totalWon || 0;
+      instance.totalLost = parsed.totalLost || 0;
+      
+      saveAppState();
+      render();
+      updateUndoRedoButtons();
+      updateStatsDisplay();
+      alert("Import complete. Sequences and history restored.");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to import file. Ensure it's a valid JSON export from this app.");
+    }
+  };
+  reader.readAsText(file);
+});
+
+/* --- Fee Settings Modal --- */
+const feeModal = el("feeModalOverlay");
+const feeInputModal = el("feeInputModalOverlay");
+
+el("feeSettingsBtn").addEventListener("click", openFeeSettingsModal);
+el("cancelFeeBtn").addEventListener("click", closeFeeSettingsModal);
+el("saveFeeBtn").addEventListener("click", saveFeeSettings);
+
+function openFeeSettingsModal() {
+  const instance = getCurrentInstance();
+  el("defaultFeeInput").value = instance.feeSettings.defaultFee;
+  if (instance.feeSettings.useDefaultFee) {
+    el("useDefaultFee").checked = true;
+  } else {
+    el("askForFee").checked = true;
+  }
+  feeModal.classList.add("show");
+  feeModal.setAttribute("aria-hidden","false");
+  settingsPanel.classList.remove("show");
+}
+
+function closeFeeSettingsModal() {
+  feeModal.classList.remove("show");
+  feeModal.setAttribute("aria-hidden","true");
+}
+
+function saveFeeSettings() {
+  const instance = getCurrentInstance();
+  saveToHistory();
+  instance.feeSettings.defaultFee = parseFloat(el("defaultFeeInput").value) || 0;
+  instance.feeSettings.useDefaultFee = el("useDefaultFee").checked;
+  saveAppState();
+  closeFeeSettingsModal();
+}
+
+/* --- Fee Input Modal --- */
+el("cancelFeeInputBtn").addEventListener("click", closeFeeInputModal);
+el("confirmFeeInputBtn").addEventListener("click", confirmFeeInput);
+
+function openFeeInputModal() {
+  const instance = getCurrentInstance();
+  const betAmount = nextBetAmount(instance.sequences[instance.active]);
+  el("nextBetAmountDisplay").textContent = betAmount.toFixed(2);
+  el("actualFeeInput").value = "0.00";
+  feeInputModal.classList.add("show");
+  feeInputModal.setAttribute("aria-hidden","false");
+}
+
+function closeFeeInputModal() {
+  feeInputModal.classList.remove("show");
+  feeInputModal.setAttribute("aria-hidden","true");
+  pendingOutcome = null;
+}
+
+function confirmFeeInput() {
+  const feeAmount = parseFloat(el("actualFeeInput").value) || 0;
+  recordOutcomeWithFee(feeAmount, false);
+  closeFeeInputModal();
+}
+
+/* --- Merge modal logic (only show valid parent pairs) --- */
+const modal = el("modalOverlay");
+const mergeSelect = el("mergeSelect");
+const mergePreview = el("mergePreview");
+let currentMergeChoice = null;
+
+function buildMergeOptions(){
+  const instance = getCurrentInstance();
+  // find all names ending with -A and -B having same parent
+  const names = Object.keys(instance.sequences);
+  const parents = {};
+  names.forEach(n => {
+    if(n.endsWith("-A")) {
+      const p = n.slice(0, -2);
+      parents[p] = parents[p] || {};
+      parents[p].A = n;
+    } else if(n.endsWith("-B")) {
+      const p = n.slice(0, -2);
+      parents[p] = parents[p] || {};
+      parents[p].B = n;
+    }
+  });
+  // options: only parents that have both A and B
+  const valid = Object.entries(parents).filter(([p, ch]) => ch.A && ch.B);
+  mergeSelect.innerHTML = "";
+  if(valid.length===0){
+    mergeSelect.disabled = true;
+    const opt = document.createElement("option");
+    opt.text = "No valid pairs available";
+    mergeSelect.add(opt);
+    mergePreview.textContent = "No pairs available to merge.";
+    currentMergeChoice = null;
+    return;
+  }
+  mergeSelect.disabled = false;
+  valid.forEach(([p,ch])=>{
+    const label = `${ch.A}  +  ${ch.B}  →  ${p}`;
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.text = label;
+    mergeSelect.add(opt);
+  });
+  mergeSelect.selectedIndex = 0;
+  updateMergePreview();
+}
+
+function updateMergePreview(){
+  const instance = getCurrentInstance();
+  const parent = mergeSelect.value;
+  if(!parent) { mergePreview.textContent = "Choose a pair to preview."; currentMergeChoice=null; return; }
+  const a = instance.sequences[parent + "-A"];
+  const b = instance.sequences[parent + "-B"];
+  if(!a || !b) { mergePreview.textContent = "Pair not found."; currentMergeChoice=null; return; }
+  const maxLen = Math.max(a.length, b.length);
+  const merged = [];
+  for(let i=0;i<maxLen;i++){
+    merged.push(+(((a[i]||0) + (b[i]||0)).toFixed(2)));
+  }
+  mergePreview.innerHTML = `<div style="font-weight:700">${parent}-A + ${parent}-B → ${parent}</div>
+    <div class="small" style="margin-top:6px"><b>Merged result:</b> ${merged.join(", ") || "(empty)"}</div>`;
+  currentMergeChoice = parent;
+}
+
+/* Open / close modal */
+el("mergeBtn").addEventListener("click", ()=> openMergeModal());
+el("mergeOpenBtn").addEventListener("click", ()=> openMergeModal());
+el("cancelMergeBtn").addEventListener("click", ()=> closeMergeModal());
+mergeSelect.addEventListener("change", ()=> updateMergePreview());
+
+function openMergeModal(){
+  buildMergeOptions();
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden","false");
+}
+function closeMergeModal(){
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden","true");
+  currentMergeChoice = null;
+}
+
+/* Confirm merge */
+el("confirmMergeBtn").addEventListener("click", ()=>{
+  if(!currentMergeChoice) return alert("Select a valid pair first.");
+  const instance = getCurrentInstance();
+  const parent = currentMergeChoice;
+  const A = instance.sequences[parent + "-A"];
+  const B = instance.sequences[parent + "-B"];
+  if(!A || !B) return alert("Pair not found (maybe deleted).");
+  
+  saveToHistory();
+  
+  const maxLen = Math.max(A.length, B.length);
+  const merged = [];
+  for(let i=0;i<maxLen;i++){
+    merged.push(+(((A[i]||0) + (B[i]||0)).toFixed(2)));
+  }
+  // replace parent
+  instance.sequences[parent] = merged;
+  // delete children
+  delete instance.sequences[parent + "-A"];
+  delete instance.sequences[parent + "-B"];
+  instance.active = parent;
+  saveAppState();
+  render();
+  closeMergeModal();
+});
+
+/* Undo/Redo button handlers */
+el("undoBtn").addEventListener("click", undo);
+el("redoBtn").addEventListener("click", redo);
+
+/* Keyboard shortcuts for undo/redo */
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+    if (e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+    } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+      e.preventDefault();
+      redo();
+    }
+  }
+});
+
+/* close modal when clicking outside modal box */
+modal.addEventListener("click", (e)=>{
+  if(e.target === modal) closeMergeModal();
+});
+feeModal.addEventListener("click", (e)=>{
+  if(e.target === feeModal) closeFeeSettingsModal();
+});
+feeInputModal.addEventListener("click", (e)=>{
+  if(e.target === feeInputModal) closeFeeInputModal();
+});
+
+/* init render */
+render();
+updateUndoRedoButtons();
+updateStatsDisplay();
+
+/* save on unload as safety */
+window.addEventListener("beforeunload", ()=> saveAppState());
+</script>
+</body>
+</html>
